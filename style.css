@@ -289,3 +289,9 @@
         .texture-slot { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
         .texture-thumbnail { width: 32px; height: 32px; background-color: #1e2227; border: 1px dashed #4b5162; border-radius: 0.25rem; display: flex; align-items: center; justify-content: center; font-size:0.6rem; color: #6c757d; }
         .texture-name { flex-grow: 1; font-size: 0.7rem; color: #a6adc8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .btn-secondary.active-tool {
+            background-color: #82aaff !important;
+            color: #1e2227 !important;
+            border-color: #82aaff !important;
+        }

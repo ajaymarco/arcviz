@@ -44,6 +44,10 @@
         let pushPullFaceNormal = null;
         let pushPullFaceIndex = -1;
 
+        let isDrawingWall = false;
+        let wallPoints = [];
+        let wallPreviewLine = null;
+
 
         // --- Utility Functions ---
         function generateUUID() {
@@ -473,14 +477,7 @@
             });
             if (editorUi.createBoxBtn) editorUi.createBoxBtn.addEventListener('click', () => { cancelActiveToolModes(); showEditorDimensionModal(); });
             if (editorUi.addRectangleBtn) editorUi.addRectangleBtn.addEventListener('click', startRectangleDrawing);
-            if (editorUi.addWallBtn) editorUi.addWallBtn.addEventListener('click', () => {
-                cancelActiveToolModes();
-                showEditorMessageBox("Wall Tool: Creating a default wall.", "info");
-                const wallGeo = new THREE.BoxGeometry(5, 2.5, 0.2);
-                const wallMesh = editorAddObject(wallGeo, "Wall");
-                if(wallMesh) wallMesh.position.y = 1.25;
-                editorSaveState();
-            });
+            if (editorUi.addWallBtn) editorUi.addWallBtn.addEventListener('click', startWallDrawing);
             if (editorUi.addSlabBtn) editorUi.addSlabBtn.addEventListener('click', () => {
                 cancelActiveToolModes();
                  const slabGeo = new THREE.BoxGeometry(5, 0.2, 4);
@@ -539,6 +536,19 @@
             }
             if (editorUi.modelFileInput) {
                 editorUi.modelFileInput.addEventListener('change', handleFileSelect, false);
+            }
+            if (editorUi.loadFolderBtn) {
+                editorUi.loadFolderBtn.addEventListener('click', loadLocalAssets);
+            }
+            if (editorUi.importFloorplanBtn) {
+                editorUi.importFloorplanBtn.addEventListener('click', () => {
+                    if (editorUi.floorplanFileInput) {
+                        editorUi.floorplanFileInput.click();
+                    }
+                });
+            }
+            if (editorUi.floorplanFileInput) {
+                editorUi.floorplanFileInput.addEventListener('change', handleFloorplanFile, false);
             }
 
             if (editorUi.viewTranslateBtn) editorUi.viewTranslateBtn.addEventListener('click', () => setEditorTransformMode('translate'));
@@ -959,6 +969,33 @@
                 return;
             }
 
+            if (isDrawingWall) {
+                const intersection = new THREE.Vector3();
+                editorRaycaster.ray.intersectPlane(groundPlane, intersection);
+
+                if (wallPoints.length > 0 && intersection.distanceTo(wallPoints[0]) < 0.2) {
+                    // Clicked close to the start point, close the wall
+                    wallPoints.push(wallPoints[0]); // close the loop
+                    createWallFromPoints();
+                } else {
+                    wallPoints.push(intersection.clone());
+                    if (wallPoints.length === 1) {
+                        const previewMaterial = new THREE.LineBasicMaterial({ color: 0x82aaff, transparent: true, opacity: 0.7 });
+                        const previewGeometry = new THREE.BufferGeometry().setFromPoints([wallPoints[0], wallPoints[0]]);
+                        wallPreviewLine = new THREE.Line(previewGeometry, previewMaterial);
+                        wallPreviewLine.name = "WallPreview";
+                        editorScene.add(wallPreviewLine);
+                    } else {
+                        // Add a segment to the preview
+                        const tempLineGeo = new THREE.Line(new THREE.BufferGeometry().setFromPoints([wallPoints[wallPoints.length-2], wallPoints[wallPoints.length-1]]), new THREE.LineBasicMaterial({ color: 0x82aaff }));
+                        tempLineGeo.name = "WallSegmentPreview";
+                        editorScene.add(tempLineGeo);
+                    }
+                     showEditorMessageBox(`Wall point ${wallPoints.length} added. Click to add more, click first point or press Enter to finish.`, "info");
+                }
+                return;
+            }
+
             if (isPushPullMode) {
                 const intersects = editorRaycaster.intersectObjects(editorObjects, false);
                 if (intersects.length > 0) {
@@ -1013,7 +1050,7 @@
         }
 
         function onEditorCanvasMouseMove(event) {
-            if (!isEditorInitialized || !isDrawingRectangle || !rectangleStartPoint || !rectanglePreviewMesh) return;
+            if (!isEditorInitialized || (!isDrawingRectangle && !isDrawingWall)) return;
             if (!editorRaycaster || !editorMouse || !editorCamera) return;
 
             const canvas = editorRenderer.domElement;
@@ -1026,18 +1063,32 @@
             const intersection = new THREE.Vector3();
             editorRaycaster.ray.intersectPlane(groundPlane, intersection);
 
-            const p1 = rectangleStartPoint;
-            const p2 = intersection;
-            const points = [
-                p1.x, 0.01, p1.z,
-                p2.x, 0.01, p1.z,
-                p2.x, 0.01, p2.z,
-                p1.x, 0.01, p2.z,
-                p1.x, 0.01, p1.z
-            ];
-            rectanglePreviewMesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-            rectanglePreviewMesh.geometry.attributes.position.needsUpdate = true;
-            rectanglePreviewMesh.geometry.computeBoundingSphere();
+            if (isDrawingRectangle && rectanglePreviewMesh) {
+                const p1 = rectangleStartPoint;
+                const p2 = intersection;
+                const points = [
+                    p1.x, 0.01, p1.z,
+                    p2.x, 0.01, p1.z,
+                    p2.x, 0.01, p2.z,
+                    p1.x, 0.01, p2.z,
+                    p1.x, 0.01, p1.z
+                ];
+                rectanglePreviewMesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+                rectanglePreviewMesh.geometry.attributes.position.needsUpdate = true;
+                rectanglePreviewMesh.geometry.computeBoundingSphere();
+            }
+
+            if (isDrawingWall && wallPreviewLine) {
+                const positions = wallPreviewLine.geometry.attributes.position.array;
+                const lastPoint = wallPoints[wallPoints.length - 1];
+                positions[0] = lastPoint.x;
+                positions[1] = lastPoint.y;
+                positions[2] = lastPoint.z;
+                positions[3] = intersection.x;
+                positions[4] = intersection.y;
+                positions[5] = intersection.z;
+                wallPreviewLine.geometry.attributes.position.needsUpdate = true;
+            }
         }
 
         function onEditorKeyDown(event) {
@@ -1049,10 +1100,16 @@
             }
 
             if (event.key === 'Escape') {
-                if (isDrawingRectangle || isPushPullMode) {
+                if (isDrawingRectangle || isPushPullMode || isDrawingWall) {
                     cancelActiveToolModes();
                     return;
                 }
+            }
+
+            if (isDrawingWall && event.key === 'Enter') {
+                createWallFromPoints();
+                event.preventDefault();
+                return;
             }
 
             const isCtrlCmd = event.ctrlKey || event.metaKey;
@@ -1649,6 +1706,148 @@
             } else { showEditorMessageBox("No light selected to delete.", "error"); }
         }
 
+        function handleFloorplanFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+
+            if (fileExtension === 'dxf') {
+                reader.onload = (e) => {
+                    const fileContent = e.target.result;
+                    const loader = new DXFLoader();
+                    // The DXF loader needs a font file to be loaded.
+                    new THREE.FontLoader().load('https://cdn.jsdelivr.net/npm/three@0.97.0/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+                        loader.setFont(font);
+                        const data = loader.parse(fileContent);
+                        if (data && data.entity) {
+                            // Center the floorplan
+                            const bbox = new THREE.Box3().setFromObject(data.entity);
+                            const center = bbox.getCenter(new THREE.Vector3());
+                            data.entity.position.sub(center);
+
+                            editorScene.add(data.entity);
+                            editorObjects.push(data.entity);
+                            editorSelectObject(data.entity);
+                            updateEditorObjectList();
+                            editorSaveState();
+                            showEditorMessageBox(`Loaded "${file.name}"`, "success");
+                        } else {
+                            showEditorMessageBox("Could not parse DXF file.", "error");
+                        }
+                    });
+                };
+                reader.readAsText(file);
+            } else if (['jpg', 'jpeg', 'png'].includes(fileExtension)) {
+                reader.onload = (e) => {
+                    const textureLoader = new THREE.TextureLoader();
+                    textureLoader.load(e.target.result, (texture) => {
+                        const aspectRatio = texture.image.width / texture.image.height;
+                        const planeGeo = new THREE.PlaneGeometry(10 * aspectRatio, 10);
+                        const planeMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+                        const floorplanMesh = new THREE.Mesh(planeGeo, planeMat);
+                        floorplanMesh.name = `Floorplan: ${file.name}`;
+                        floorplanMesh.rotation.x = -Math.PI / 2;
+
+                        editorScene.add(floorplanMesh);
+                        editorObjects.push(floorplanMesh);
+                        editorSelectObject(floorplanMesh);
+                        updateEditorObjectList();
+                        editorSaveState();
+                        showEditorMessageBox(`Loaded "${file.name}"`, "success");
+                    });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showEditorMessageBox("Unsupported file type for floorplan.", "error");
+            }
+
+            event.target.value = '';
+        }
+
+        async function loadLocalAssets() {
+            if (!window.showDirectoryPicker) {
+                showEditorMessageBox("Your browser does not support the File System Access API.", "error");
+                return;
+            }
+
+            try {
+                const dirHandle = await window.showDirectoryPicker();
+                const assetGrid = document.getElementById('asset-grid');
+                if (!assetGrid) return;
+
+                assetGrid.innerHTML = '<div class="loading-spinner"></div>'; // Show a spinner
+
+                const modelFiles = [];
+                for await (const entry of dirHandle.values()) {
+                    if (entry.kind === 'file' && (entry.name.endsWith('.glb') || entry.name.endsWith('.gltf'))) {
+                        modelFiles.push(entry);
+                    }
+                }
+
+                assetGrid.innerHTML = ''; // Clear spinner
+
+                if (modelFiles.length === 0) {
+                    assetGrid.innerHTML = '<p class="helper-text col-span-3">No .glb or .gltf models found in this folder.</p>';
+                    return;
+                }
+
+                for (const fileHandle of modelFiles) {
+                    const assetItem = document.createElement('div');
+                    assetItem.className = 'p-2 border border-gray-700 rounded text-center text-xs text-gray-400 hover:bg-gray-700 cursor-pointer';
+                    assetItem.textContent = fileHandle.name;
+                    assetItem.title = `Load ${fileHandle.name}`;
+                    assetItem.addEventListener('click', async () => {
+                        try {
+                            const file = await fileHandle.getFile();
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                const contents = e.target.result;
+                                const loader = new THREE.GLTFLoader();
+                                loader.parse(contents, '', (gltf) => {
+                                    const model = gltf.scene;
+                                    model.name = file.name;
+                                    model.traverse(function (child) {
+                                        if (child.isMesh) {
+                                            child.castShadow = true;
+                                            child.receiveShadow = true;
+                                        }
+                                    });
+                                    const box = new THREE.Box3().setFromObject(model);
+                                    const center = box.getCenter(new THREE.Vector3());
+                                    model.position.sub(center);
+                                    editorScene.add(model);
+                                    model.traverse(child => {
+                                        if(child.isMesh) editorObjects.push(child);
+                                    });
+                                    editorSelectObject(model);
+                                    updateEditorObjectList();
+                                    editorSaveState();
+                                    showEditorMessageBox(`Loaded "${file.name}"`, "success");
+                                }, (error) => {
+                                    console.error('An error happened during GLTF loading:', error);
+                                    showEditorMessageBox(`Error loading ${file.name}. See console.`, "error");
+                                });
+                            };
+                            reader.readAsArrayBuffer(file);
+                        } catch (err) {
+                            console.error("Error loading asset from folder:", err);
+                            showEditorMessageBox("Could not load the asset. See console for details.", "error");
+                        }
+                    });
+                    assetGrid.appendChild(assetItem);
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error("Error opening directory picker:", err);
+                    showEditorMessageBox("Could not open folder. See console for details.", "error");
+                }
+            }
+        }
+
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) {
@@ -1783,6 +1982,7 @@
 
         function startRectangleDrawing() {
             cancelActiveToolModes();
+            if(editorUi.addRectangleBtn) editorUi.addRectangleBtn.classList.add('active-tool');
             isDrawingRectangle = true;
             rectangleStartPoint = null;
             if (editorUi.renderCanvas) editorUi.renderCanvas.classList.add('crosshair-cursor');
@@ -1790,8 +1990,19 @@
             showEditorMessageBox("Rectangle Tool: Click on ground to set first corner.", "info");
         }
 
+        function startWallDrawing() {
+            cancelActiveToolModes();
+            if(editorUi.addWallBtn) editorUi.addWallBtn.classList.add('active-tool');
+            isDrawingWall = true;
+            wallPoints = [];
+            if (editorUi.renderCanvas) editorUi.renderCanvas.classList.add('crosshair-cursor');
+            if (editorOrbitControls) editorOrbitControls.enabled = false;
+            showEditorMessageBox("Wall Tool: Click on ground to set start point. Press Enter to finish, Esc to cancel.", "info");
+        }
+
         function startPushPullMode() {
             cancelActiveToolModes();
+            if(editorUi.pushPullBtn) editorUi.pushPullBtn.classList.add('active-tool');
             isPushPullMode = true;
             objectToPushPull = null;
             pushPullFaceNormal = null;
@@ -1799,6 +2010,38 @@
             if (editorUi.renderCanvas) editorUi.renderCanvas.classList.add('crosshair-cursor');
             if (editorOrbitControls) editorOrbitControls.enabled = false;
             showEditorMessageBox("Push/Pull Tool: Click on a flat plane or box face to extrude.", "info");
+        }
+
+        function createWallFromPoints() {
+            if (wallPoints.length < 2) {
+                cancelActiveToolModes();
+                return;
+            }
+
+            for (let i = 0; i < wallPoints.length - 1; i++) {
+                const p1 = wallPoints[i];
+                const p2 = wallPoints[i+1];
+                const distance = p1.distanceTo(p2);
+                if (distance < 0.1) continue; // Don't create tiny wall segments
+
+                const wallGeo = new THREE.BoxGeometry(distance, 2.5, 0.2);
+
+                const wallMesh = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({color: 0xcccccc, roughness: 0.8, metalness: 0.2}));
+                wallMesh.name = `Wall_Segment_${i}`;
+                wallMesh.userData.type = 'Wall';
+                wallMesh.castShadow = true;
+                wallMesh.receiveShadow = true;
+
+                wallMesh.position.lerpVectors(p1, p2, 0.5);
+                wallMesh.position.y = 1.25;
+                wallMesh.lookAt(p2.x, 1.25, p2.z);
+
+                editorScene.add(wallMesh);
+                editorObjects.push(wallMesh);
+            }
+
+            cancelActiveToolModes();
+            editorSaveState();
         }
 
         function performPlaneExtrusion() {
@@ -1902,6 +2145,7 @@
 
 
         function cancelActiveToolModes() {
+            document.querySelectorAll('.active-tool').forEach(btn => btn.classList.remove('active-tool'));
             if (isDrawingRectangle) {
                 if (rectanglePreviewMesh) {
                     editorScene.remove(rectanglePreviewMesh);
@@ -1912,6 +2156,25 @@
                 isDrawingRectangle = false;
                 rectangleStartPoint = null;
                 showEditorMessageBox("Rectangle drawing cancelled.", "info", 1500);
+            }
+            if (isDrawingWall) {
+                if (wallPreviewLine) {
+                    editorScene.remove(wallPreviewLine);
+                    if(wallPreviewLine.geometry) wallPreviewLine.geometry.dispose();
+                    if(wallPreviewLine.material) wallPreviewLine.material.dispose();
+                    wallPreviewLine = null;
+                }
+                // Also remove any temporary line segments
+                const segments = editorScene.children.filter(c => c.name === "WallSegmentPreview");
+                segments.forEach(s => {
+                    editorScene.remove(s);
+                    if(s.geometry) s.geometry.dispose();
+                    if(s.material) s.material.dispose();
+                });
+
+                isDrawingWall = false;
+                wallPoints = [];
+                showEditorMessageBox("Wall drawing cancelled.", "info", 1500);
             }
             if (isPushPullMode) {
                 isPushPullMode = false;
@@ -2025,7 +2288,7 @@
                 addSpotLightBtn: 'addSpotLightBtn', addAmbientLightBtn: 'addAmbientLightBtn', addAreaLightBtn: 'addAreaLightBtn', // New Light
                 toggleLightHelpersBtn: 'toggleLightHelpersBtn', objectListPanel: 'objectList',
                 cameraFOVInput: 'cameraFOV', cameraNearInput: 'cameraNear', cameraFarInput: 'cameraFar', saveNamedViewBtn: 'saveNamedViewBtn',
-                importModelBtn: 'importModelBtn', modelFileInput: 'model-file-input', renderCanvas: 'renderCanvas', viewTranslateBtn: 'viewTranslateBtn',
+                importModelBtn: 'importModelBtn', modelFileInput: 'model-file-input', loadFolderBtn: 'loadFolderBtn', importFloorplanBtn: 'importFloorplanBtn', floorplanFileInput: 'floorplan-file-input', renderCanvas: 'renderCanvas', viewTranslateBtn: 'viewTranslateBtn',
                 viewRotateBtn: 'viewRotateBtn', viewScaleBtn: 'viewScaleBtn', viewTopBtn: 'viewTopBtn',
                 viewFrontBtn: 'viewFrontBtn', viewSideBtn: 'viewSideBtn', viewIsoBtn: 'viewIsoBtn',
                 viewResetBtn: 'viewResetBtn', viewFrameBtn: 'viewFrameBtn', toggleSnappingBtn: 'toggleSnappingBtn',
