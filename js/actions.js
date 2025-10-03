@@ -1,30 +1,32 @@
 import * as THREE from 'three';
-import { appState, editorState, uiState } from './state.js';
+import { editorState } from './state.js';
 import { ui } from './ui.js';
 import { editor } from './editor.js';
-import { saveState } from './history.js';
+import { executeCommand } from './history.js';
+import { AddObjectCommand, DeleteObjectCommand, AddLightCommand, DeleteLightCommand } from './commands.js';
 
-export function addObject(geometry, baseType = 'Object') {
-    if (!appState.isEditorInitialized) {
+export function addObject(geometry, baseType = 'Object', name = null) {
+    if (!editor.isReady()) {
         ui.showEditorMessageBox("Editor not ready to add objects.", "error");
         return null;
     }
-    const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.2 });
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+    });
     material.color.convertSRGBToLinear();
 
     const object = new THREE.Mesh(geometry, material);
-    object.name = `${baseType}_${editorState.objects.length + 1}`;
+    object.name = name || `${baseType}_${editorState.objects.length + 1}`;
     object.userData.type = baseType;
     object.castShadow = true;
     object.receiveShadow = true;
 
-    editorState.scene.add(object);
-    editorState.objects.push(object);
+    executeCommand(new AddObjectCommand(object));
 
-    editor.selectObject(object);
-    ui.updateObjectList();
     ui.showEditorMessageBox(`Added ${object.name}.`, "success", 1500);
-    saveState();
     return object;
 }
 
@@ -35,17 +37,18 @@ export function createBoxWithDimensions() {
     const depth = Math.max(0.01, parseFloat(boxDepth.value) || 1);
 
     const boxGeo = new THREE.BoxGeometry(width, height, depth);
-    const boxMesh = addObject(boxGeo, `Box (${width}x${height}x${depth})`);
+    const boxName = `Box (${width}x${height}x${depth})`;
+    const boxMesh = addObject(boxGeo, 'Box', boxName);
+
     if(boxMesh) {
         boxMesh.position.y = height / 2;
     }
 
     ui.hideDimensionModal();
-    saveState();
 }
 
 export function addLight(type) {
-    if (!appState.isEditorInitialized) {
+    if (!editor.isReady()) {
         ui.showEditorMessageBox("Editor not ready to add lights.", "error");
         return null;
     }
@@ -77,14 +80,10 @@ export function addLight(type) {
     light.castShadow = true;
     if (helper) {
         light.userData.helper = helper;
-        editorState.scene.add(helper);
     }
 
-    editorState.scene.add(light);
-    editorState.lights.push(light);
-    editor.selectLight(light);
-    ui.updateObjectList();
-    saveState();
+    executeCommand(new AddLightCommand(light));
+    ui.showEditorMessageBox(`Added ${light.name}.`, "success", 1500);
     return light;
 }
 
@@ -93,39 +92,20 @@ export function deleteSelected() {
     const lightToDelete = editorState.selectedLight;
 
     if (objectToDelete) {
-        ui.showConfirmModal(`Delete "${objectToDelete.name}"?`, (confirmed) => {
+        ui.showConfirmModal(`Are you sure you want to delete "${objectToDelete.name}"?`, (confirmed) => {
             if (confirmed) {
-                const index = editorState.objects.indexOf(objectToDelete);
-                if (index > -1) editorState.objects.splice(index, 1);
-
-                if (editorState.transformControls.object === objectToDelete) editorState.transformControls.detach();
-                editorState.scene.remove(objectToDelete);
-                if (objectToDelete.geometry) objectToDelete.geometry.dispose();
-                if (objectToDelete.material) objectToDelete.material.dispose();
-
-                editor.selectObject(null);
-                saveState();
-                ui.hideConfirmModal();
-            } else {
-                ui.hideConfirmModal();
+                executeCommand(new DeleteObjectCommand(objectToDelete));
+                ui.showEditorMessageBox(`Deleted ${objectToDelete.name}.`, "success");
             }
+            ui.hideConfirmModal();
         });
     } else if (lightToDelete) {
-        ui.showConfirmModal(`Delete "${lightToDelete.name}"?`, (confirmed) => {
+        ui.showConfirmModal(`Are you sure you want to delete "${lightToDelete.name}"?`, (confirmed) => {
             if (confirmed) {
-                const index = editorState.lights.indexOf(lightToDelete);
-                if (index > -1) editorState.lights.splice(index, 1);
-
-                if (lightToDelete.userData.helper) editorState.scene.remove(lightToDelete.userData.helper);
-                if (lightToDelete.target) editorState.scene.remove(lightToDelete.target);
-                editorState.scene.remove(lightToDelete);
-
-                editor.selectLight(null);
-                saveState();
-                ui.hideConfirmModal();
-            } else {
-                ui.hideConfirmModal();
+                executeCommand(new DeleteLightCommand(lightToDelete));
+                ui.showEditorMessageBox(`Deleted ${lightToDelete.name}.`, "success");
             }
+            ui.hideConfirmModal();
         });
     }
 }
