@@ -4,16 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ArchViz Pro Studio</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Preconnect for Google Fonts for better performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Updated Font Awesome to latest version -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three-dxf-loader@5.1.0/dist/three-dxf-loader.js"></script>
-
+    <!-- The old three.js scripts are replaced by ES6 module imports -->
+    <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+        }
+    }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r17/Stats.min.js"></script>
 
     <link rel="stylesheet" href="style.css">
@@ -90,10 +98,10 @@
                                 <div class="section-content grid grid-cols-2 gap-2" id="primitive-shapes-content">
                                      <button id="addCubeBtn" class="btn btn-secondary btn-sm"><i class="fas fa-cube"></i> Cube</button>
                                      <button id="addSphereBtn" class="btn btn-secondary btn-sm"><i class="fas fa-globe"></i> Sphere</button>
-                                     <button id="addCylinderBtn" class="btn btn-secondary btn-sm"><i class="fas fa-circle-notch"></i> Cylinder</button>
+                                     <button id="addCylinderBtn" class="btn btn-secondary btn-sm"><i class="fas fa-database"></i> Cylinder</button>
                                      <button id="addPlaneBtn" class="btn btn-secondary btn-sm"><i class="far fa-square"></i> Plane</button>
-                                     <button id="addTorusBtn" class="btn btn-secondary btn-sm" disabled><i class="fas fa-ring"></i> Torus</button>
-                                     <button id="addConeBtn" class="btn btn-secondary btn-sm" disabled><i class="fas fa-caret-up"></i> Cone</button>
+                                     <button id="addTorusBtn" class="btn btn-secondary btn-sm"><i class="fas fa-ring"></i> Torus</button>
+                                     <button id="addConeBtn" class="btn btn-secondary btn-sm"><i class="fas fa-mountain"></i> Cone</button>
                                      <button id="addText3DBtn" class="btn btn-secondary btn-sm col-span-2" disabled><i class="fas fa-font"></i> 3D Text</button>
                                 </div>
                             </div>
@@ -235,16 +243,16 @@
                     </div>
                     <div id="viewport-toolbar">
                         <button id="viewTranslateBtn" class="viewport-btn active" title="Translate (T)"><i class="fas fa-arrows-up-down-left-right"></i></button>
-                        <button id="viewRotateBtn" class="viewport-btn" title="Rotate (R)"><i class="fas fa-sync-alt"></i></button>
-                        <button id="viewScaleBtn" class="viewport-btn" title="Scale (S)"><i class="fas fa-expand-arrows-alt"></i></button>
+                        <button id="viewRotateBtn" class="viewport-btn" title="Rotate (R)"><i class="fas fa-rotate"></i></button>
+                        <button id="viewScaleBtn" class="viewport-btn" title="Scale (S)"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
                         <div class="toolbar-separator"></div>
-                        <button id="viewTopBtn" class="viewport-btn" title="Top View (Num 7 / Home)"><i class="fas fa-arrow-down"></i> T</button>
-                        <button id="viewFrontBtn" class="viewport-btn" title="Front View (Num 1 / End)"><i class="fas fa-border-style"></i> F</button>
-                        <button id="viewSideBtn" class="viewport-btn" title="Side View (Right - Num 3 / PgDn)"><i class="fas fa-border-left"></i> S</button>
+                        <button id="viewTopBtn" class="viewport-btn" title="Top View (Num 7 / Home)"><i class="fas fa-long-arrow-alt-down"></i> T</button>
+                        <button id="viewFrontBtn" class="viewport-btn" title="Front View (Num 1 / End)"><i class="fas fa-long-arrow-alt-right"></i> F</button>
+                        <button id="viewSideBtn" class="viewport-btn" title="Side View (Right - Num 3 / PgDn)"><i class="fas fa-long-arrow-alt-up"></i> S</button>
                         <button id="viewIsoBtn" class="viewport-btn" title="Perspective (Num 5)"><i class="fas fa-camera"></i> P</button>
                         <div class="toolbar-separator"></div>
                         <button id="viewResetBtn" class="viewport-btn" title="Reset View"><i class="fas fa-home"></i></button>
-                        <button id="viewFrameBtn" class="viewport-btn" title="Frame Selected (F)"><i class="fas fa-search-plus"></i></button>
+                        <button id="viewFrameBtn" class="viewport-btn" title="Frame Selected (F)"><i class="fas fa-expand"></i></button>
                          <button id="toggleSnappingBtn" class="viewport-btn ml-1" title="Toggle Snapping (X)"><i class="fas fa-magnet"></i></button>
                          <select id="snappingOptionsSelect" class="btn-sm bg-gray-700 text-gray-300 border-gray-600 h-[30px] ml-1" title="Snapping Options (Coming Soon)" disabled>
                             <option value="grid">Grid</option>
@@ -416,6 +424,7 @@
 
     <div id="globalMessageBox" class="message-box"></div>
 
-    <script src="script.js"></script>
+    <!-- ES6 Module-based scripts -->
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
