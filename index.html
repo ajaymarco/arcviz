@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArchViz Pro Studio</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three-dxf@1.3.1/dist/three-dxf.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r17/Stats.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="project-manager-view">
+        <h1>ArchViz Pro Studio Projects</h1>
+        <div id="project-manager-loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p style="text-align:center; color: #8992b0;">Loading projects...</p>
+        </div>
+        <ul id="project-list"></ul>
+        <div id="no-projects-message" style="display: none;">No projects found. Create one to get started!</div>
+        <button id="createNewProjectBtn" class="btn btn-sm self-center mt-4"><i class="fas fa-plus"></i> Create New Project</button>
+    </div>
+
+    <div id="newProjectModal" class="modal-overlay">
+        <div class="modal-content">
+            <p class="modal-title">Create New Project</p>
+            <div class="input-group">
+                <label for="projectNameInput">Project Name:</label>
+                <input type="text" id="projectNameInput" class="input-field" placeholder="e.g., Downtown Apartment Block">
+            </div>
+            <div class="modal-actions">
+                <button id="cancelNewProjectBtn" class="btn btn-secondary btn-sm">Cancel</button>
+                <button id="confirmNewProjectBtn" class="btn btn-sm">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmDeleteModal" class="modal-overlay">
+        <div class="modal-content">
+            <p class="modal-title">Confirm Deletion</p>
+            <p id="confirmDeleteMessage" class="modal-message">Are you sure you want to delete this project? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="cancelDeleteBtn" class="btn btn-secondary btn-sm">Cancel</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger btn-sm">Delete Project</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editor-view">
+        <div id="app-container">
+            <div id="top-toolbar">
+                <button id="backToProjectsBtn" class="top-toolbar-btn" title="Back to Project Manager"><i class="fas fa-arrow-left"></i> Projects</button>
+                <div class="toolbar-separator"></div>
+                <span id="currentProjectNameDisplay" class="text-sm font-semibold text-gray-300 mx-2">No Project</span>
+                <div class="toolbar-separator"></div>
+                <button id="saveProjectBtn" class="top-toolbar-btn" title="Save Project (Ctrl+S)"><i class="fas fa-save"></i> Save</button>
+                <button id="exportSceneJsonBtn" class="top-toolbar-btn" title="Export Scene JSON"><i class="fas fa-file-export"></i> Export JSON</button>
+                <button id="importSceneJsonBtn" class="top-toolbar-btn" title="Import Scene JSON"><i class="fas fa-file-import"></i> Import JSON</button>
+                <div class="toolbar-separator"></div>
+                <button id="undoBtn" class="top-toolbar-btn" title="Undo (Ctrl+Z)" disabled><i class="fas fa-undo"></i> Undo</button>
+                <button id="redoBtn" class="top-toolbar-btn" title="Redo (Ctrl+Y)" disabled><i class="fas fa-redo"></i> Redo</button>
+                <div class="toolbar-separator"></div>
+                <button id="settingsBtn" class="top-toolbar-btn" title="Settings" disabled><i class="fas fa-cog"></i></button>
+                <button id="helpBtn" class="top-toolbar-btn" title="Help" disabled><i class="fas fa-question-circle"></i></button>
+                <button id="measureToolBtn" class="top-toolbar-btn" title="Measure Tool (Coming Soon)" disabled><i class="fas fa-ruler"></i></button>
+            </div>
+
+            <div id="main-content">
+                <div id="left-sidebar" class="sidebar">
+                    <h1 class="sidebar-header">Create & Manage</h1>
+                    <div class="sidebar-tabs" id="left-sidebar-tabs">
+                        <div class="sidebar-tab active" data-tab="create-panel" data-sidebar="left">Create</div>
+                        <div class="sidebar-tab" data-tab="scene-panel" data-sidebar="left">Scene</div>
+                        <div class="sidebar-tab" data-tab="assets-panel" data-sidebar="left">Assets</div>
+                    </div>
+                    <div class="sidebar-content-panel" id="left-sidebar-content">
+                        <div id="create-panel" class="tab-panel active">
+                            <div class="section">
+                                <h2 class="section-title" data-section="primitive-shapes">Primitive Shapes <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content grid grid-cols-2 gap-2" id="primitive-shapes-content">
+                                     <button id="addCubeBtn" class="btn btn-secondary btn-sm"><i class="fas fa-cube"></i> Cube</button>
+                                     <button id="addSphereBtn" class="btn btn-secondary btn-sm"><i class="fas fa-globe"></i> Sphere</button>
+                                     <button id="addCylinderBtn" class="btn btn-secondary btn-sm"><i class="fas fa-circle-notch"></i> Cylinder</button>
+                                     <button id="addPlaneBtn" class="btn btn-secondary btn-sm"><i class="far fa-square"></i> Plane</button>
+                                     <button id="addTorusBtn" class="btn btn-secondary btn-sm" disabled><i class="fas fa-ring"></i> Torus</button>
+                                     <button id="addConeBtn" class="btn btn-secondary btn-sm" disabled><i class="fas fa-caret-up"></i> Cone</button>
+                                     <button id="addText3DBtn" class="btn btn-secondary btn-sm col-span-2" disabled><i class="fas fa-font"></i> 3D Text</button>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title" data-section="arch-tools">Architectural Tools <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content grid grid-cols-1 gap-2" id="arch-tools-content">
+                                     <button id="createBoxBtn" class="btn btn-secondary btn-sm w-full"><i class="fas fa-box-open"></i> Box (Dim)</button>
+                                     <button id="addRectangleBtn" class="btn btn-secondary btn-sm w-full mt-1"><i class="far fa-vector-square"></i> Rectangle</button>
+                                     <button id="addWallBtn" class="btn btn-secondary btn-sm w-full mt-1"><i class="fas fa-ruler-combined"></i> Wall Tool</button>
+                                     <button id="addSlabBtn" class="btn btn-secondary btn-sm w-full mt-1"><i class="fas fa-layer-group"></i> Slab Tool</button>
+                                     <button id="pushPullBtn" class="btn btn-secondary btn-sm w-full mt-1"><i class="fas fa-hand-rock"></i> Push/Pull</button>
+                                     <button id="addStairsBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fas fa-stairs"></i> Stairs Tool</button>
+                                     <button id="addDoorBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fas fa-door-open"></i> Door Tool</button>
+                                     <button id="addWindowBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fas fa-border-all"></i> Window Tool</button>
+                                     <button id="addRoofBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fas fa-home"></i> Roof Tool</button>
+                                </div>
+                            </div>
+                             <div class="section">
+                                <h2 class="section-title" data-section="drawing-tools">Drawing & Import <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content grid grid-cols-1 gap-2" id="drawing-tools-content">
+                                     <button id="drawPolylineBtn" class="btn btn-secondary btn-sm w-full" disabled><i class="fas fa-draw-polygon"></i> Polyline</button>
+                                     <button id="drawArcBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fas fa-circle-notch"></i> Arc Tool</button>
+                                     <button id="importSvgBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fab fa-svg"></i> Import SVG</button>
+                                     <button id="importDxfBtn" class="btn btn-secondary btn-sm w-full mt-1"><i class="fas fa-file-import"></i> Import DXF</button>
+                                </div>
+                            </div>
+                             <div class="section">
+                                <h2 class="section-title" data-section="lighting-elements">Lighting <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="lighting-elements-content">
+                                    <div class="grid grid-cols-2 gap-2 mb-1">
+                                        <button id="addPointLightBtn" class="btn btn-secondary btn-sm"><i class="fas fa-lightbulb"></i> Point</button>
+                                        <button id="addDirectionalLightBtn" class="btn btn-secondary btn-sm"><i class="fas fa-sun"></i> Directional</button>
+                                        <button id="addSpotLightBtn" class="btn btn-secondary btn-sm"><i class="fas fa-video"></i> Spot</button>
+                                        <button id="addAmbientLightBtn" class="btn btn-secondary btn-sm"><i class="fas fa-cloud-sun"></i> Ambient</button>
+                                        <button id="addAreaLightBtn" class="btn btn-secondary btn-sm" disabled><i class="far fa-lightbulb"></i> Area Light</button>
+                                    </div>
+                                    <button id="toggleLightHelpersBtn" class="btn btn-secondary btn-sm w-full mt-2"><i class="fas fa-eye"></i> Toggle Light Helpers</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="scene-panel" class="tab-panel">
+                            <div class="section">
+                                <h2 class="section-title" data-section="scene-explorer">Scene Explorer <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content p-0" id="scene-explorer-content">
+                                    <div class="flex justify-end p-1 border-b border-gray-700">
+                                        <button class="btn-icon-only btn-secondary btn-sm" title="Group Selected (Coming Soon)" disabled><i class="fas fa-object-group"></i></button>
+                                        <button class="btn-icon-only btn-secondary btn-sm ml-1" title="Ungroup (Coming Soon)" disabled><i class="fas fa-object-ungroup"></i></button>
+                                    </div>
+                                    <div id="objectList" class="space-y-px max-h-64 overflow-y-auto p-2">
+                                        <p class="helper-text">No elements in scene.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title" data-section="layers-panel">Layers <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="layers-panel-content">
+                                    <div class="flex mb-2">
+                                        <input type="text" id="newLayerName" placeholder="New layer name" class="editor-input-field editor-input-field-sm mr-2">
+                                        <button id="addLayerBtn" class="btn btn-secondary btn-sm" disabled><i class="fas fa-plus"></i> Add</button>
+                                    </div>
+                                    <div id="layerList" class="max-h-40 overflow-y-auto border border-gray-700 rounded p-1">
+                                        <p class="helper-text">Layers feature coming soon.</p>
+                                        <!-- Example Layer Item (for styling reference)
+                                        <div class="flex items-center justify-between p-1 hover:bg-gray-700 rounded text-xs">
+                                            <span>Default Layer</span>
+                                            <div class="space-x-1">
+                                                <button title="Toggle Visibility" class="text-gray-400 hover:text-white"><i class="fas fa-eye"></i></button>
+                                                <button title="Toggle Lock" class="text-gray-400 hover:text-white"><i class="fas fa-lock-open"></i></button>
+                                            </div>
+                                        </div>
+                                        -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title" data-section="camera-settings-scene">Active Camera <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="camera-settings-scene-content">
+                                     <div class="space-y-2">
+                                        <div class="editor-input-group"><label for="cameraFOV">FOV</label><input type="number" id="cameraFOV" value="60" step="1" min="10" max="120" class="editor-input-field"></div>
+                                        <div class="editor-input-group"><label for="cameraNear">Near Clip</label><input type="number" id="cameraNear" value="0.1" step="0.1" min="0.01" class="editor-input-field"></div>
+                                        <div class="editor-input-group"><label for="cameraFar">Far Clip</label><input type="number" id="cameraFar" value="2000" step="10" min="10" class="editor-input-field"></div>
+                                        <button id="saveNamedViewBtn" class="btn btn-secondary btn-sm w-full mt-2" disabled><i class="fas fa-camera-retro"></i> Save Named View</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="assets-panel" class="tab-panel">
+                            <div class="section">
+                                <h2 class="section-title" data-section="asset-library">Asset Library <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="asset-library-content">
+                                    <button id="importModelBtn" class="btn btn-secondary btn-sm w-full mb-2" disabled><i class="fas fa-file-import"></i> Import 3D Model (GLTF, OBJ)</button>
+                                    <p class="helper-text mt-2">Material, Texture & Model libraries coming soon.</p>
+                                    <div class="grid grid-cols-3 gap-2 mt-2">
+                                        <div class="p-2 border border-dashed border-gray-600 rounded text-center text-xs text-gray-500 h-20 flex items-center justify-center" title="Material Library (Coming Soon)">Materials</div>
+                                        <div class="p-2 border border-dashed border-gray-600 rounded text-center text-xs text-gray-500 h-20 flex items-center justify-center" title="Texture Library (Coming Soon)">Textures</div>
+                                        <div class="p-2 border border-dashed border-gray-600 rounded text-center text-xs text-gray-500 h-20 flex items-center justify-center" title="Model Library (Coming Soon)">Models</div>
+                                    </div>
+                                </div>
+                            </div>
+                             <div class="section">
+                                <h2 class="section-title" data-section="hdri-library">HDRI Environments <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="hdri-library-content">
+                                    <button id="loadHdriBtn" class="btn btn-secondary btn-sm w-full mb-2" disabled><i class="fas fa-image"></i> Load HDRI</button>
+                                    <p class="helper-text">HDRI library coming soon.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button id="left-sidebar-toggle" class="sidebar-toggle-btn" title="Toggle Left Sidebar"><i class="fas fa-chevron-left"></i></button>
+
+                <div id="viewport-container">
+                    <div id="renderCanvasContainer">
+                        <canvas id="renderCanvas"></canvas>
+                        <div id="viewport-overlay">
+                            <button class="btn-sm" onclick="window.toggleWireframeGlobal()"><i class="fas fa-border-all"></i> Wireframe</button>
+                            <button class="btn-sm" onclick="window.toggleGridGlobal()"><i class="fas fa-th"></i> Grid</button>
+                            <button class="btn-sm" onclick="window.resetCameraPositionGlobal()"><i class="fas fa-camera-retro"></i> Reset Cam</button>
+                            <button class="btn-sm" onclick="window.toggleStatsGlobal()"><i class="fas fa-chart-line"></i> Stats</button>
+                            <select id="shadingModeSelect" class="btn-sm bg-gray-700 text-gray-300 border-gray-600 w-full mt-1" disabled>
+                                <option value="shaded">Shaded</option>
+                                <option value="hiddenLine">Hidden Line</option>
+                                <option value="xray">X-Ray</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="viewport-toolbar">
+                        <button id="viewTranslateBtn" class="viewport-btn active" title="Translate (T)"><i class="fas fa-arrows-up-down-left-right"></i></button>
+                        <button id="viewRotateBtn" class="viewport-btn" title="Rotate (R)"><i class="fas fa-sync-alt"></i></button>
+                        <button id="viewScaleBtn" class="viewport-btn" title="Scale (S)"><i class="fas fa-expand-arrows-alt"></i></button>
+                        <div class="toolbar-separator"></div>
+                        <button id="viewTopBtn" class="viewport-btn" title="Top View (Num 7 / Home)"><i class="fas fa-arrow-down"></i> T</button>
+                        <button id="viewFrontBtn" class="viewport-btn" title="Front View (Num 1 / End)"><i class="fas fa-border-style"></i> F</button>
+                        <button id="viewSideBtn" class="viewport-btn" title="Side View (Right - Num 3 / PgDn)"><i class="fas fa-border-left"></i> S</button>
+                        <button id="viewIsoBtn" class="viewport-btn" title="Perspective (Num 5)"><i class="fas fa-camera"></i> P</button>
+                        <div class="toolbar-separator"></div>
+                        <button id="viewResetBtn" class="viewport-btn" title="Reset View"><i class="fas fa-home"></i></button>
+                        <button id="viewFrameBtn" class="viewport-btn" title="Frame Selected (F)"><i class="fas fa-search-plus"></i></button>
+                         <button id="toggleSnappingBtn" class="viewport-btn ml-1" title="Toggle Snapping (X)"><i class="fas fa-magnet"></i></button>
+                         <select id="snappingOptionsSelect" class="btn-sm bg-gray-700 text-gray-300 border-gray-600 h-[30px] ml-1" title="Snapping Options (Coming Soon)" disabled>
+                            <option value="grid">Grid</option>
+                            <option value="vertex">Vertex</option>
+                            <option value="edge">Edge</option>
+                         </select>
+                    </div>
+                    <div id="editorMessageBox" class="message-box"></div>
+                    <div id="loadingOverlay" class="message-box"> <i class="fas fa-spinner fa-spin"></i>
+                        <span id="loadingOverlayText">Rendering...</span>
+                    </div>
+                    <div id="jsonMessageBoxEditor" class="modal-overlay">
+                        <div class="modal-content">
+                            <p class="modal-title" id="jsonBoxEditorTitle">Scene Data (JSON)</p>
+                            <textarea id="jsonOutputEditor" readonly placeholder="Scene JSON data."></textarea>
+                            <div class="modal-actions">
+                                <button id="copyJsonEditorBtn" class="btn btn-secondary btn-sm"><i class="fas fa-copy"></i> Copy</button>
+                                <button id="loadJsonEditorBtn" class="btn btn-sm"><i class="fas fa-upload"></i> Load/Replace</button>
+                                <button id="closeJsonBoxEditorBtn" class="btn btn-danger btn-sm"><i class="fas fa-times"></i> Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="right-sidebar-toggle" class="sidebar-toggle-btn" title="Toggle Right Sidebar"><i class="fas fa-chevron-right"></i></button>
+                <div id="right-sidebar" class="sidebar">
+                    <h1 class="sidebar-header">Selection & Settings</h1>
+                    <div class="sidebar-tabs" id="right-sidebar-tabs">
+                        <div class="sidebar-tab active" data-tab="selection-props-panel" data-sidebar="right">Selection</div>
+                        <div class="sidebar-tab" data-tab="render-panel" data-sidebar="right">Render</div>
+                        <div class="sidebar-tab" data-tab="environment-panel" data-sidebar="right">World</div>
+                    </div>
+                    <div class="sidebar-content-panel" id="right-sidebar-content">
+                        <div id="selection-props-panel" class="tab-panel active">
+                            <div id="objectProperties" class="space-y-3"></div>
+                            <div id="lightPropertiesDisplay" class="space-y-3" style="display:none;">
+                                 <div class="section">
+                                    <h2 class="section-title" data-section="selected-light-details">Selected Light <i class="fas fa-chevron-down"></i></h2>
+                                    <div class="section-content" id="selected-light-details-content">
+                                        <div class="editor-input-group"><label for="lightName">Name</label><input type="text" id="lightName" class="editor-input-field"></div>
+                                        <div class="editor-input-group"><label for="lightColor">Color</label><input type="color" id="lightColor" class="editor-input-field"></div>
+                                        <div class="editor-input-group"><label for="lightIntensity">Intensity</label><input type="number" id="lightIntensity" step="0.1" min="0" class="editor-input-field"></div>
+                                        <div class="editor-input-group hidden" id="lightDistanceGroup"><label for="lightDistance">Dist.</label><input type="number" id="lightDistance" step="1" min="0" class="editor-input-field"></div>
+                                        <div class="editor-input-group hidden" id="lightDecayGroup"><label for="lightDecay">Decay</label><input type="number" id="lightDecay" step="0.1" min="0" class="editor-input-field"></div>
+                                        <div class="editor-input-group hidden" id="lightAngleGroup"><label for="lightAngle">Angle</label><input type="number" id="lightAngle" step="1" min="0" max="90" class="editor-input-field"></div>
+                                        <div class="editor-input-group hidden" id="lightPenumbraGroup"><label for="lightPenumbra">Penumbra</label><input type="number" id="lightPenumbra" step="0.01" min="0" max="1" class="editor-input-field"></div>
+                                        <button id="deleteLightBtn" class="btn btn-danger btn-sm w-full mt-2"><i class="fas fa-trash-alt"></i> Delete Light</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="noSelectionMessage" class="helper-text p-4">Select an object or light in the scene to see its properties.</div>
+                        </div>
+                        <div id="render-panel" class="tab-panel">
+                            <div class="section">
+                                <h2 class="section-title" data-section="render-settings">Render Settings <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="render-settings-content">
+                                    <div class="space-y-2">
+                                        <div class="editor-input-group"><label for="renderResolution">Resolution</label><select id="renderResolution" class="select-field"><option value="1280x720">HD (720p)</option><option value="1920x1080" selected>Full HD (1080p)</option><option value="2560x1440">QHD (1440p)</option><option value="3840x2160">4K UHD</option></select></div>
+                                        <div class="editor-input-group"><label for="renderSamples">Samples</label><input type="number" id="renderSamples" value="128" step="16" min="16" max="1024" class="editor-input-field" disabled></div>
+                                        <div class="editor-input-group"><label for="renderOutputFormat">Format</label><select id="renderOutputFormat" class="select-field"><option value="png" selected>PNG</option><option value="jpeg">JPEG</option><option value="exr" disabled>EXR</option></select></div>
+                                        <div class="editor-input-group"><label for="denoiseRender">Denoise</label><input type="checkbox" id="denoiseRender" class="form-checkbox h-4 w-4 text-blue-500 rounded border-gray-600 bg-gray-700 focus:ring-blue-500" disabled></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title" data-section="render-actions">Render Actions <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="render-actions-content">
+                                    <div class="space-y-2">
+                                        <button id="renderImageBtn" class="btn btn-sm w-full"><i class="fas fa-camera"></i> Render Image</button>
+                                        <button id="renderVideoBtn" class="btn btn-secondary btn-sm w-full" disabled><i class="fas fa-film"></i> Render Animation (Sim)</button>
+                                        <button id="addToRenderQueueBtn" class="btn btn-secondary btn-sm w-full" disabled><i class="fas fa-tasks"></i> Add to Queue</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title collapsed" data-section="animation-timeline">Animation Timeline <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content collapsed" id="animation-timeline-content">
+                                    <div class="space-y-2">
+                                        <div class="flex items-center gap-2">
+                                            <button id="playAnimationBtn" class="btn btn-icon-only btn-sm" title="Play Animation" disabled><i class="fas fa-play"></i></button>
+                                            <input type="range" id="timelineSlider" min="0" max="100" value="0" class="flex-grow h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" disabled>
+                                            <span id="currentFrame" class="text-xs w-16 text-center">0 / 100</span>
+                                        </div>
+                                        <div class="editor-input-group"><label for="frameRate">FPS</label><input type="number" id="frameRate" value="24" step="1" min="1" class="editor-input-field" disabled></div>
+                                        <button id="addKeyframeBtn" class="btn btn-secondary btn-sm w-full" disabled><i class="fas fa-key"></i> Add Keyframe</button>
+                                        <p class="helper-text mt-2">Animation features coming soon.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="environment-panel" class="tab-panel">
+                            <div class="section">
+                                <h2 class="section-title" data-section="world-background">Background <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="world-background-content">
+                                    <div class="editor-input-group"><label for="sceneBgColor">Color</label><input type="color" id="sceneBgColor" value="#1a1d21" class="editor-input-field"></div>
+                                    <div class="editor-input-group"><label for="hdriEnvironment">HDRI</label><select id="hdriEnvironment" class="select-field" disabled><option value="">None</option></select></div>
+                                    <button id="uploadHdriBtn" class="btn btn-secondary btn-sm w-full mt-1" disabled><i class="fas fa-upload"></i> Upload HDRI</button>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title" data-section="sun-sky-system">Sun & Sky <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="sun-sky-system-content">
+                                    <div class="editor-input-group"><label for="sunIntensity">Sun Intensity</label><input type="number" id="sunIntensity" value="1" step="0.1" min="0" class="editor-input-field" disabled></div>
+                                    <div class="editor-input-group"><label for="sunAzimuth">Sun Azimuth</label><input type="range" id="sunAzimuth" min="0" max="360" value="180" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" disabled></div>
+                                    <div class="editor-input-group"><label for="sunElevation">Sun Elevation</label><input type="range" id="sunElevation" min="0" max="90" value="45" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" disabled></div>
+                                    <p class="helper-text mt-2">Sun & Sky system coming soon.</p>
+                                </div>
+                            </div>
+                            <div class="section">
+                                <h2 class="section-title" data-section="global-illumination">Global Illumination <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="global-illumination-content">
+                                    <div class="editor-input-group"><label for="ambientLightColor">Ambient Color</label><input type="color" id="ambientLightColor" value="#707070" class="editor-input-field"></div>
+                                    <div class="editor-input-group"><label for="ambientLightIntensity">Intensity</label><input type="number" id="ambientLightIntensity" value="0.5" step="0.05" min="0" max="2" class="editor-input-field"></div>
+                                </div>
+                            </div>
+                             <div class="section">
+                                <h2 class="section-title" data-section="fog-atmosphere">Fog / Atmosphere <i class="fas fa-chevron-down"></i></h2>
+                                <div class="section-content" id="fog-atmosphere-content">
+                                    <div class="editor-input-group"><label for="fogEnable">Enable Fog</label><input type="checkbox" id="fogEnable" class="form-checkbox" disabled></div>
+                                    <div class="editor-input-group"><label for="fogColor">Fog Color</label><input type="color" id="fogColor" value="#cccccc" class="editor-input-field" disabled></div>
+                                    <div class="editor-input-group"><label for="fogNear">Fog Near</label><input type="number" id="fogNear" value="10" step="1" min="0" class="editor-input-field" disabled></div>
+                                    <div class="editor-input-group"><label for="fogFar">Fog Far</label><input type="number" id="fogFar" value="100" step="1" min="0" class="editor-input-field" disabled></div>
+                                    <p class="helper-text mt-2">Atmospheric effects coming soon.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmModalOverlayEditor" class="modal-overlay">
+        <div class="modal-content">
+            <p id="confirmModalMessageEditor" class="modal-message">Are you sure?</p>
+            <div class="modal-actions">
+                <button id="confirmModalNoEditor" class="btn btn-secondary btn-sm">Cancel</button>
+                <button id="confirmModalYesEditor" class="btn btn-danger btn-sm">Yes, Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dimensionModalOverlayEditor" class="modal-overlay">
+        <div class="modal-content">
+            <p id="dimensionModalTitleEditor" class="modal-title">Enter Box Dimensions</p>
+            <div class="editor-input-group"><label for="boxWidth">Width:</label><input type="number" id="boxWidth" value="1" step="0.1" min="0.01" class="editor-input-field"></div>
+            <div class="editor-input-group"><label for="boxHeight">Height:</label><input type="number" id="boxHeight" value="1" step="0.1" min="0.01" class="editor-input-field"></div>
+            <div class="editor-input-group"><label for="boxDepth">Depth:</label><input type="number" id="boxDepth" value="1" step="0.1" min="0.01" class="editor-input-field"></div>
+            <div class="modal-actions">
+                <button id="createBoxCancelBtnEditor" class="btn btn-secondary btn-sm">Cancel</button>
+                <button id="createBoxConfirmBtnEditor" class="btn btn-sm">Create Box</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="extrusionModalOverlayEditor" class="modal-overlay">
+        <div class="modal-content">
+            <p class="modal-title">Enter Extrusion Height</p>
+            <div class="input-group">
+                <label for="extrusionHeightInput">Height:</label>
+                <input type="number" id="extrusionHeightInput" value="1" step="0.1" min="0.01" class="input-field">
+            </div>
+            <div class="modal-actions">
+                <button id="cancelExtrusionBtnEditor" class="btn btn-secondary btn-sm">Cancel</button>
+                <button id="confirmExtrusionBtnEditor" class="btn btn-sm">Extrude</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="globalMessageBox" class="message-box"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
