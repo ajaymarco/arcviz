@@ -156,5 +156,12 @@ export function initializeEventListeners() {
         editorState.transformStart = null;
     });
 
+    // Disable orbit controls while dragging transform controls
+    editorState.transformControls?.addEventListener('dragging-changed', (event) => {
+        if (editorState.orbitControls) {
+            editorState.orbitControls.enabled = !event.value;
+        }
+    });
+
     console.log("Event listeners initialized.");
 }
