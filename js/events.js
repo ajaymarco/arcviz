@@ -3,6 +3,8 @@ import { editor } from './editor.js';
 import { appState, editorState, uiState } from './state.js';
 import * as actions from './actions.js';
 import * as history from './history.js';
+import { UpdateTransformCommand } from './commands.js';
+import { createNewProject, deleteConfirmedProject } from './projectManager.js';
 import * as THREE from 'three';
 
 export function initializeEventListeners() {
@@ -10,15 +12,32 @@ export function initializeEventListeners() {
 
     const { elements } = ui;
 
-    // Project Management (placeholders for now)
-    elements.createNewProjectBtn?.addEventListener('click', () => {
+    // Project Management
+	elements.createNewProjectBtn?.addEventListener('click', () => {
         elements.newProjectModal.classList.add('show');
+        elements.projectNameInput.value = '';
         elements.projectNameInput.focus();
     });
+
     elements.cancelNewProjectBtn?.addEventListener('click', () => {
         elements.newProjectModal.classList.remove('show');
     });
-    elements.backToProjectsBtn?.addEventListener('click', () => ui.showProjectManager());
+
+    elements.confirmNewProjectBtn?.addEventListener('click', createNewProject);
+
+    elements.cancelDeleteBtn?.addEventListener('click', () => {
+        elements.confirmDeleteModal.classList.remove('show');
+    });
+
+    elements.confirmDeleteBtn?.addEventListener('click', deleteConfirmedProject);
+
+    elements.backToProjectsBtn?.addEventListener('click', () => {
+        // This is a temporary solution. A more robust implementation
+        // would prompt the user to save any unsaved changes.
+        ui.showProjectManager();
+        // We may need to add a function to reload the project list here if it's not dynamic
+    });
+
 
     // Top Toolbar
     elements.undoBtn?.addEventListener('click', history.undo);
@@ -106,8 +125,35 @@ export function initializeEventListeners() {
     });
 
     // Transform controls save state on change
+    editorState.transformControls?.addEventListener('mouseDown', () => {
+        const object = editorState.transformControls.object;
+        if (object) {
+            editorState.transformStart = {
+                position: object.position.clone(),
+                rotation: object.rotation.clone(),
+                scale: object.scale.clone(),
+            };
+        }
+    });
+
     editorState.transformControls?.addEventListener('mouseUp', () => {
-        history.saveState();
+        const object = editorState.transformControls.object;
+        if (object && editorState.transformStart) {
+            const oldTransform = editorState.transformStart;
+            const newTransform = {
+                position: object.position.clone(),
+                rotation: object.rotation.clone(),
+                scale: object.scale.clone(),
+            };
+
+            // Only create a command if the transform has actually changed
+            if (!oldTransform.position.equals(newTransform.position) ||
+                !oldTransform.rotation.equals(newTransform.rotation) ||
+                !oldTransform.scale.equals(newTransform.scale)) {
+                history.executeCommand(new UpdateTransformCommand(object, newTransform, oldTransform));
+            }
+        }
+        editorState.transformStart = null;
     });
 
     console.log("Event listeners initialized.");

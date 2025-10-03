@@ -25,6 +25,7 @@ export const editorState = {
     defaultDirectionalLight: null,
     history: [],
     historyIndex: -1,
+    transformStart: null, // To store transform state on mouseDown
     isSnappingEnabled: false,
     stats: null,
     groundPlane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),

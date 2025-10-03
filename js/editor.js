@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { appState, editorState, toolState } from './state.js';
 import { ui } from './ui.js';
 
@@ -35,6 +38,20 @@ class Editor {
             editorState.renderer.setPixelRatio(window.devicePixelRatio);
             editorState.renderer.shadowMap.enabled = true;
             editorState.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Post-processing for outline effect
+            editorState.composer = new EffectComposer(editorState.renderer);
+            const renderPass = new RenderPass(editorState.scene, editorState.camera);
+            editorState.composer.addPass(renderPass);
+
+            editorState.outlinePass = new OutlinePass(new THREE.Vector2(container.clientWidth, container.clientHeight), editorState.scene, editorState.camera);
+            editorState.outlinePass.edgeStrength = 5;
+            editorState.outlinePass.edgeGlow = 0.5;
+            editorState.outlinePass.edgeThickness = 1;
+            editorState.outlinePass.pulsePeriod = 0;
+            editorState.outlinePass.visibleEdgeColor.set('#ffffff');
+            editorState.outlinePass.hiddenEdgeColor.set('#4a90e2');
+            editorState.composer.addPass(editorState.outlinePass);
 
             // Controls
             editorState.orbitControls = new OrbitControls(editorState.camera, editorState.renderer.domElement);
@@ -95,7 +112,8 @@ class Editor {
         if (editorState.stats && editorState.stats.dom.style.display !== 'none') {
             editorState.stats.update();
         }
-        editorState.renderer.render(editorState.scene, editorState.camera);
+        // Use the composer to render the scene with post-processing
+        editorState.composer.render();
     }
 
     onWindowResize() {
@@ -110,12 +128,16 @@ class Editor {
             editorState.camera.aspect = newWidth / newHeight;
             editorState.camera.updateProjectionMatrix();
             editorState.renderer.setSize(newWidth, newHeight);
+            // Also resize the composer and outline pass
+            editorState.composer.setSize(newWidth, newHeight);
+            editorState.outlinePass.resolution.set(newWidth, newHeight);
         }
     }
 
     selectObject(object) {
-        if (editorState.selectedObject && editorState.selectedObject.material && editorState.selectedObject.material.emissive) {
-            editorState.selectedObject.material.emissive.setHex(editorState.selectedObject.userData.originalEmissiveHex || 0x000000);
+        // Use the new OutlinePass for selection
+        if (editorState.outlinePass) {
+            editorState.outlinePass.selectedObjects = object ? [object] : [];
         }
 
         if (editorState.transformControls.object) {
@@ -123,17 +145,14 @@ class Editor {
         }
 
         editorState.selectedObject = object;
-        editorState.selectedLight = null;
+        editorState.selectedLight = null; // Can't have both selected
 
         if (editorState.selectedObject) {
-            if (editorState.selectedObject.material && editorState.selectedObject.material.emissive) {
-                editorState.selectedObject.userData.originalEmissiveHex = editorState.selectedObject.material.emissive.getHex();
-                editorState.selectedObject.material.emissive.setHex(0x82aaff);
-            }
             editorState.transformControls.attach(editorState.selectedObject);
         }
 
         ui.updateSelectionPropertiesVisibility();
+        // This will need to be updated to show real properties
         ui.updateSelectedObjectPropertiesPanel();
         ui.updateObjectList();
     }

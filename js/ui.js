@@ -186,9 +186,78 @@ class UI {
 
     updateSelectedObjectPropertiesPanel() {
         const object = editorState.selectedObject;
-        if (!object || !this.elements.objectProperties) return;
-        // Simplified for now. Will be expanded later.
-        this.elements.objectProperties.innerHTML = `<div>Name: ${object.name}</div>`;
+        const propertiesPanel = this.elements.objectProperties;
+        if (!object || !propertiesPanel) {
+            if (propertiesPanel) propertiesPanel.innerHTML = ''; // Clear panel if no selection
+            return;
+        }
+
+        const createVector3Input = (label, vector, property) => {
+            return `
+                <div class="editor-input-group">
+                    <label>${label}</label>
+                    <div class="flex space-x-1">
+                        <input type="number" step="0.1" class="editor-input-field" data-property="${property}" data-axis="x" value="${vector.x.toFixed(2)}">
+                        <input type="number" step="0.1" class="editor-input-field" data-property="${property}" data-axis="y" value="${vector.y.toFixed(2)}">
+                        <input type="number" step="0.1" class="editor-input-field" data-property="${property}" data-axis="z" value="${vector.z.toFixed(2)}">
+                    </div>
+                </div>
+            `;
+        };
+
+        propertiesPanel.innerHTML = `
+            <div class="section">
+                <h2 class="section-title" data-section="object-details">Object Details <i class="fas fa-chevron-down"></i></h2>
+                <div class="section-content" id="object-details-content">
+                    <div class="editor-input-group">
+                        <label for="objectName">Name</label>
+                        <input type="text" id="objectName" class="editor-input-field" value="${object.name}">
+                    </div>
+                    <div class="editor-input-group">
+                        <label>Type</label>
+                        <span class="text-gray-400 text-sm">${object.userData.type || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <h2 class="section-title" data-section="object-transform">Transform <i class="fas fa-chevron-down"></i></h2>
+                <div class="section-content" id="object-transform-content">
+                    ${createVector3Input('Position', object.position, 'position')}
+                    ${createVector3Input('Rotation', object.rotation.toVector3(), 'rotation')}
+                    ${createVector3Input('Scale', object.scale, 'scale')}
+                </div>
+            </div>
+             <div class="section">
+                <h2 class="section-title" data-section="object-material">Material <i class="fas fa-chevron-down"></i></h2>
+                <div class="section-content" id="object-material-content">
+                    <p class="helper-text">Material editor coming soon.</p>
+                </div>
+            </div>
+        `;
+
+        // Add event listeners for the new inputs
+        const nameInput = propertiesPanel.querySelector('#objectName');
+        nameInput.addEventListener('change', (e) => {
+            if(editorState.selectedObject) editorState.selectedObject.name = e.target.value;
+            this.updateObjectList();
+        });
+
+        propertiesPanel.querySelectorAll('input[type="number"]').forEach(input => {
+            input.addEventListener('change', (e) => {
+                if(!editorState.selectedObject) return;
+
+                const property = e.target.dataset.property; // 'position', 'rotation', 'scale'
+                const axis = e.target.dataset.axis; // 'x', 'y', 'z'
+                const value = parseFloat(e.target.value);
+
+                if (property === 'rotation') {
+                    // Convert degrees to radians for rotation
+                    editorState.selectedObject.rotation[axis] = THREE.MathUtils.degToRad(value);
+                } else {
+                    editorState.selectedObject[property][axis] = value;
+                }
+            });
+        });
     }
 
     updateSelectedLightPropertiesPanel() {
